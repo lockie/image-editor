@@ -119,6 +119,60 @@ void rolling_avg_cb(Widget*, void*)
 	working = false;
 }
 
+void upscale_nn_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	const char* Nstr = input("Scale factor", "2");
+	if(!Nstr)
+		return;
+	int N = atoi(Nstr);
+	if(N == 0)
+		return;
+
+	working = true;
+
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setsize(image->buffer_width() * N, image->buffer_height() * N);
+	newimage->setpixeltype(RGB32);
+
+	for(int y = 0; y < image->buffer_height() * N; y++)
+	{
+		bar->position(100.0 * (double) y / (image->buffer_height() * N));
+		bar->redraw();
+		fltk::wait(0.001);
+		for(int x = 0; x < image->buffer_width() * N; x++)
+		{
+			size_t index = (y / N) * image->buffer_width() * 4
+				+ (x / N) * 4;
+			char r = image->buffer()[index + 0];
+			char g = image->buffer()[index + 1];
+			char b = image->buffer()[index + 2];
+
+			uchar newpixel[4];
+			newpixel[0] = r;
+			newpixel[1] = g;
+			newpixel[2] = b;
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
 static void build_menus(MenuBar* menu, Widget* w)
 {
 	ItemGroup* g;
@@ -137,6 +191,8 @@ static void build_menus(MenuBar* menu, Widget* w)
 	g = new ItemGroup( "&Edit" );
 	g->begin();
 	new Item( "&Rolling average",  COMMAND + 'r', (Callback*)rolling_avg_cb);
+	new Divider;
+	new Item( "Upscale &NN",      COMMAND + 'n', (Callback*)upscale_nn_cb);
 	g->end();
 	menu->end();
 }
