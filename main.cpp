@@ -83,7 +83,7 @@ void rolling_avg_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / image->buffer_height());
 		bar->redraw();
-		fltk::wait(0.001);
+		fltk::wait(0.001f);
 		for(int x = 0; x < image->buffer_width() - N; x++)
 		{
 			long rsum = 0, gsum = 0, bsum = 0;
@@ -100,9 +100,9 @@ void rolling_avg_cb(Widget*, void*)
 					bsum += b;
 				}
 			uchar newpixel[4];
-			newpixel[0] = rsum / (N * N);
-			newpixel[1] = gsum / (N * N);
-			newpixel[2] = bsum / (N * N);
+			newpixel[0] = uchar(rsum / (N * N));
+			newpixel[1] = uchar(gsum / (N * N));
+			newpixel[2] = uchar(bsum / (N * N));
 			newpixel[3] = 0;
 			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
 		}
@@ -144,7 +144,7 @@ void upscale_nn_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / (image->buffer_height() * N));
 		bar->redraw();
-		fltk::wait(0.001);
+		fltk::wait(0.001f);
 		for(int x = 0; x < image->buffer_width() * N; x++)
 		{
 			size_t index = (y / N) * image->buffer_width() * 4
