@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 
 #include <fltk/FL_API.h>
 #include <fltk/InvisibleBox.h>
@@ -173,6 +174,86 @@ void upscale_nn_cb(Widget*, void*)
 	working = false;
 }
 
+void upscale_bl_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	const char* Nstr = input("Scale factor", "2");
+	if(!Nstr)
+		return;
+	int N = atoi(Nstr);
+	if(N == 0)
+		return;
+
+	working = true;
+
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setsize(image->buffer_width() * N, image->buffer_height() * N);
+	newimage->setpixeltype(RGB32);
+
+	for(int y = 0; y < image->buffer_height() * N; y++)
+	{
+		bar->position(100.0 * (double) y / (image->buffer_height() * N));
+		bar->redraw();
+		fltk::wait(0.001f);
+		for(int x = 0; x < image->buffer_width() * N; x++)
+		{
+			int floor_x = floor(x / N),
+				floor_y = floor(y / N);
+			int ceil_x = floor_x + 1;
+			if(ceil_x >= image->buffer_width())
+				ceil_x = floor_x;
+			int ceil_y = floor_y + 1;
+			if(ceil_y >= image->buffer_height())
+				ceil_y = floor_y;
+			double fraction_x = double(x) / N - floor_x,
+				fraction_y = double(y) / N - floor_y;
+			double one_minus_x = 1.0 - fraction_x,
+				one_minus_y = 1.0 - fraction_y;
+
+			uchar* f1 = &image->buffer()[floor_y * image->buffer_width() * 4 +
+				floor_x * 4];
+			uchar* f2 = &image->buffer()[floor_y * image->buffer_width() * 4 +
+				ceil_x * 4];
+			uchar* f3 = &image->buffer()[ceil_y  * image->buffer_width() * 4 +
+				floor_x * 4];
+			uchar* f4 = &image->buffer()[ceil_y  * image->buffer_width() * 4 +
+				ceil_x * 4];
+
+			uchar newpixel[4], p1, p2;
+			p1 = one_minus_x * f1[0] + fraction_x * f2[0];
+			p2 = one_minus_x * f3[0] + fraction_x * f4[0];
+			newpixel[0] = one_minus_y * p1 + fraction_y * p2;
+			p1 = one_minus_x * f1[1] + fraction_x * f2[1];
+			p2 = one_minus_x * f3[1] + fraction_x * f4[1];
+			newpixel[1] = one_minus_y * p1 + fraction_y * p2;
+			p1 = one_minus_x * f1[2] + fraction_x * f2[2];
+			p2 = one_minus_x * f3[2] + fraction_x * f4[2];
+			newpixel[2] = one_minus_y * p1 + fraction_y * p2;
+
+			// Список литературы
+			// [1] http://www.codeproject.com/KB/GDI-plus/imageprocessing4.aspx
+
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
 static void build_menus(MenuBar* menu, Widget* w)
 {
 	ItemGroup* g;
@@ -193,6 +274,7 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "&Rolling average",  COMMAND + 'r', (Callback*)rolling_avg_cb);
 	new Divider;
 	new Item( "Upscale &NN",      COMMAND + 'n', (Callback*)upscale_nn_cb);
+	new Item( "Upscale &bilinear",COMMAND + 'b', (Callback*)upscale_bl_cb);
 	g->end();
 	menu->end();
 }
