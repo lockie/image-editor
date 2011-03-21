@@ -202,8 +202,8 @@ void upscale_bl_cb(Widget*, void*)
 		fltk::wait(0.001f);
 		for(int x = 0; x < image->buffer_width() * N; x++)
 		{
-			int floor_x = floor(x / N),
-				floor_y = floor(y / N);
+			int floor_x = x / N,
+				floor_y = y / N;
 			int ceil_x = floor_x + 1;
 			if(ceil_x >= image->buffer_width())
 				ceil_x = floor_x;
@@ -225,15 +225,15 @@ void upscale_bl_cb(Widget*, void*)
 				ceil_x * 4];
 
 			uchar newpixel[4], p1, p2;
-			p1 = one_minus_x * f1[0] + fraction_x * f2[0];
-			p2 = one_minus_x * f3[0] + fraction_x * f4[0];
-			newpixel[0] = one_minus_y * p1 + fraction_y * p2;
-			p1 = one_minus_x * f1[1] + fraction_x * f2[1];
-			p2 = one_minus_x * f3[1] + fraction_x * f4[1];
-			newpixel[1] = one_minus_y * p1 + fraction_y * p2;
-			p1 = one_minus_x * f1[2] + fraction_x * f2[2];
-			p2 = one_minus_x * f3[2] + fraction_x * f4[2];
-			newpixel[2] = one_minus_y * p1 + fraction_y * p2;
+			p1 = uchar(one_minus_x * f1[0] + fraction_x * f2[0]);
+			p2 = uchar(one_minus_x * f3[0] + fraction_x * f4[0]);
+			newpixel[0] = uchar(one_minus_y * p1 + fraction_y * p2);
+			p1 = uchar(one_minus_x * f1[1] + fraction_x * f2[1]);
+			p2 = uchar(one_minus_x * f3[1] + fraction_x * f4[1]);
+			newpixel[1] = uchar(one_minus_y * p1 + fraction_y * p2);
+			p1 = uchar(one_minus_x * f1[2] + fraction_x * f2[2]);
+			p2 = uchar(one_minus_x * f3[2] + fraction_x * f4[2]);
+			newpixel[2] = uchar(one_minus_y * p1 + fraction_y * p2);
 
 			// Список литературы
 			// [1] http://www.codeproject.com/KB/GDI-plus/imageprocessing4.aspx

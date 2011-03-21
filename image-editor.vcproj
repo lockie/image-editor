@@ -137,8 +137,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="fltk2.lib fltk2_images.lib fltk2_jpeg.lib fltk2_png.lib fltk2_z.lib ws2_32.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="lib"
+				IgnoreDefaultLibraryNames="LIBCMT"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
