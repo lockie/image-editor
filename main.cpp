@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <cassert>
 
 #include <fltk/FL_API.h>
 #include <fltk/InvisibleBox.h>
@@ -254,6 +255,180 @@ void upscale_bl_cb(Widget*, void*)
 	working = false;
 }
 
+Image* filter(double* kernel, int kern_height, int kern_width, const Image* image)
+{
+	assert(kern_height % 2);
+	assert(kern_width % 2);  // должен быть средний элемент
+
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setsize(image->buffer_width(), image->buffer_height());
+	newimage->setpixeltype(RGB32);
+
+	for(int y = 0; y < image->buffer_height(); y++)
+	{
+		bar->position(100.0 * (double) y / (image->buffer_height()));
+		bar->redraw();
+		fltk::wait(0.001f);
+		for(int x = 0; x < image->buffer_width(); x++)
+		{
+			double newpix[3];
+			memset(newpix, 0, sizeof(newpix));
+			for(int j = -int(kern_height / 2); j <= kern_height / 2; j++)
+			{
+				int y_idx = j + y;
+				if(y_idx < 0)
+					y_idx += image->buffer_height();
+				for(int i = -int(kern_width / 2); i <= kern_width / 2; i++)
+				{
+					int x_idx = i + x;
+					if(x_idx < 0)
+						x_idx += image->buffer_width();
+					size_t index = y_idx * image->buffer_width() * 4
+						+ x_idx * 4;
+					size_t kern_index = (j+kern_height/2) * kern_width + (i+kern_width/2);
+					uchar r = image->buffer()[index + 0];
+					newpix[0] += kernel[kern_index] * r;
+					uchar g = image->buffer()[index + 1];
+					newpix[1] += kernel[kern_index] * g;
+					uchar b = image->buffer()[index + 2];
+					newpix[2] += kernel[kern_index] * b;
+				}
+			}
+			uchar newpixel[4];
+			newpixel[0] = (newpix[0] < 255) ? (newpix[0] > 0 ? uchar(newpix[0]) : 0) : 255;
+			newpixel[1] = (newpix[1] < 255) ? (newpix[1] > 0 ? uchar(newpix[1]) : 0) : 255;
+			newpixel[2] = (newpix[2] < 255) ? (newpix[2] > 0 ? uchar(newpix[2]) : 0) : 255;
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+	return newimage;
+}
+
+void sharpen_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+
+	double sharpen_kernel[9] = {
+		0.1*(-1), 0.1*(-2), 0.1*(-1),
+		0.1*(-2), 0.1*(22), 0.1*(-2),
+		0.1*(-1), 0.1*(-2), 0.1*(-1)
+	};
+	Image* newimage = filter(sharpen_kernel, 3, 3, image);
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void blur_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	const char* sigma_str = input("Blur strength", "1.0");
+	if(!sigma_str)
+		return;
+	double sigma = atof(sigma_str);
+	if(sigma == 0)
+		return;
+
+	double sigma2 = sigma * sigma;
+
+	working = true;
+
+	double blur_kernel[9];
+	double sum = 0;
+	for(int k = 0; k < 3; k++)
+		for(int p = 0; p < 3; p++)
+		{
+			blur_kernel[k*3+p] = exp(double(k*k+p*p)/(-2*sigma2));
+			sum += blur_kernel[k*3+p];
+		}
+	for(int i = 0; i < 9; i++)
+		blur_kernel[i] /= sum;
+
+	Image* newimage = filter(blur_kernel, 3, 3, image);
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void edge_detection_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+
+	double edgedet_kernel[9] = {
+		0, -1, 0,
+		-1, 4, -1,
+		0, -1, 0
+	};
+	Image* newimage = filter(edgedet_kernel, 3, 3, image);
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void emboss_cb()
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+
+	double emboss_kernel[9] = {
+		0, 1, 0,
+		1, 0, -1,
+		0, -1, 0
+	};
+	Image* newimage = filter(emboss_kernel, 3, 3, image);
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
 static void build_menus(MenuBar* menu, Widget* w)
 {
 	ItemGroup* g;
@@ -271,10 +446,15 @@ static void build_menus(MenuBar* menu, Widget* w)
 	g->end();
 	g = new ItemGroup( "&Edit" );
 	g->begin();
-	new Item( "&Sliding average",  COMMAND + 'r', (Callback*)sliding_avg_cb);
+	new Item( "&Sliding average",  COMMAND + 's', (Callback*)sliding_avg_cb);
 	new Divider;
 	new Item( "Upscale &NN",      COMMAND + 'n', (Callback*)upscale_nn_cb);
 	new Item( "Upscale &bilinear",COMMAND + 'b', (Callback*)upscale_bl_cb);
+	new Divider;
+	new Item( "Sha&rpen filter",COMMAND + 'r', (Callback*)sharpen_cb);
+	new Item( "Bl&ur filter",COMMAND + 'u', (Callback*)blur_cb);
+	new Item( "E&dge detection filter",COMMAND + 'd', (Callback*)edge_detection_cb);
+	new Item( "&Emboss filter",COMMAND + 'e', (Callback*)emboss_cb);
 	g->end();
 	menu->end();
 }
