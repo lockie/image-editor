@@ -57,7 +57,7 @@ void quit_cb(Widget*, void*)
 
 static bool working = false;
 
-void rolling_avg_cb(Widget*, void*)
+void sliding_avg_cb(Widget*, void*)
 {
 	if(!image)
 		return;
@@ -87,17 +87,17 @@ void rolling_avg_cb(Widget*, void*)
 		fltk::wait(0.001f);
 		for(int x = 0; x < image->buffer_width() - N; x++)
 		{
-			long rsum = 0, gsum = 0, bsum = 0;
+			unsigned long int rsum = 0, gsum = 0, bsum = 0;
 			for(int j = 0; j < N; j++)
 				for(int i = 0; i < N; i++)
 				{
 					size_t index = (y + j) * image->buffer_width() * 4
 						+ (x + i) * 4;
-					char r = image->buffer()[index + 0];
+					uchar r = image->buffer()[index + 0];
 					rsum += r;
-					char g = image->buffer()[index + 1];
+					uchar g = image->buffer()[index + 1];
 					gsum += g;
-					char b = image->buffer()[index + 2];
+					uchar b = image->buffer()[index + 2];
 					bsum += b;
 				}
 			uchar newpixel[4];
@@ -271,7 +271,7 @@ static void build_menus(MenuBar* menu, Widget* w)
 	g->end();
 	g = new ItemGroup( "&Edit" );
 	g->begin();
-	new Item( "&Rolling average",  COMMAND + 'r', (Callback*)rolling_avg_cb);
+	new Item( "&Sliding average",  COMMAND + 'r', (Callback*)sliding_avg_cb);
 	new Divider;
 	new Item( "Upscale &NN",      COMMAND + 'n', (Callback*)upscale_nn_cb);
 	new Item( "Upscale &bilinear",COMMAND + 'b', (Callback*)upscale_bl_cb);
