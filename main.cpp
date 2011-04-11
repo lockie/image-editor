@@ -386,6 +386,46 @@ void blur_cb(Widget*, void*)
 	working = false;
 }
 
+void do_simple_grayscale()
+{
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setsize(image->buffer_width(), image->buffer_height());
+	newimage->setpixeltype(RGB32);
+
+	for(int y = 0; y < image->buffer_height(); y++)
+	{
+		bar->position(100.0 * (double) y / (image->buffer_height()));
+		bar->redraw();
+		fltk::wait(0);
+		for(int x = 0; x < image->buffer_width(); x++)
+		{
+			size_t index = (y * image->buffer_width() + x) * 4;
+			uchar r = image->buffer()[index + 0];
+			uchar g = image->buffer()[index + 1];
+			uchar b = image->buffer()[index + 2];
+
+			double val = 0.299 * r + 0.587 * g + 0.114 * b;
+			if(val > 255)
+				val = 255;
+			uchar newpixel[4];
+			newpixel[0] = val;
+			newpixel[1] = val;
+			newpixel[2] = val;
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+}
+
 void edge_detection_cb(Widget*, void*)
 {
 	if(!image)
@@ -406,14 +446,15 @@ void edge_detection_cb(Widget*, void*)
 	delete image;
 	newimage->buffer_changed();
 	image = newimage;
-	image_box->image(image);
-	bar->position(0);
-	image_box->redraw();
+
+	do_simple_grayscale();
 
 	working = false;
 }
 
-void emboss_cb()
+
+
+void emboss_cb(Widget*, void*)
 {
 	if(!image)
 		return;
@@ -433,10 +474,21 @@ void emboss_cb()
 	delete image;
 	newimage->buffer_changed();
 	image = newimage;
-	image_box->image(image);
-	bar->position(0);
-	image_box->redraw();
 
+	do_simple_grayscale();
+
+	working = false;
+}
+
+void simple_grayscale_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+	do_simple_grayscale();
 	working = false;
 }
 
@@ -466,6 +518,8 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "Bl&ur filter",COMMAND + 'u', (Callback*)blur_cb);
 	new Item( "E&dge detection filter",COMMAND + 'd', (Callback*)edge_detection_cb);
 	new Item( "&Emboss filter",COMMAND + 'e', (Callback*)emboss_cb);
+	new Divider;
+	new Item( "Grayscale s&imple", COMMAND + 'i', (Callback*)simple_grayscale_cb);
 	g->end();
 	menu->end();
 }
