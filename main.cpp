@@ -81,19 +81,30 @@ void sliding_avg_cb(Widget*, void*)
 		image->buffer_width(),
 		image->buffer_height() );
 
-	for(int y = 0; y < image->buffer_height() - N; y++)
+	for(int y = 0; y < image->buffer_height(); y++)
 	{
 		bar->position(100.0 * (double) y / image->buffer_height());
 		bar->redraw();
-		fltk::wait(0.001f);
-		for(int x = 0; x < image->buffer_width() - N; x++)
+		fltk::wait(0);
+		for(int x = 0; x < image->buffer_width(); x++)
 		{
 			unsigned long int rsum = 0, gsum = 0, bsum = 0;
-			for(int j = 0; j < N; j++)
-				for(int i = 0; i < N; i++)
+			for(int j = -N/2; j <= N/2; j++)
+				for(int i = -N/2; i <= N/2; i++)
 				{
-					size_t index = (y + j) * image->buffer_width() * 4
-						+ (x + i) * 4;
+					int y_idx = y + j > image->buffer_height() ?
+						N - j:
+						y + j;
+					if(y_idx < 0)
+						y_idx += image->buffer_height();
+					int x_idx = x + i > image->buffer_width() ?
+						N - i:
+						x + i;
+					if(x_idx < 0)
+						x_idx += image->buffer_width();
+
+					size_t index = y_idx * image->buffer_width() * 4
+						+ x_idx * 4;
 					uchar r = image->buffer()[index + 0];
 					rsum += r;
 					uchar g = image->buffer()[index + 1];
@@ -102,9 +113,9 @@ void sliding_avg_cb(Widget*, void*)
 					bsum += b;
 				}
 			uchar newpixel[4];
-			newpixel[0] = uchar(rsum / (N * N));
-			newpixel[1] = uchar(gsum / (N * N));
-			newpixel[2] = uchar(bsum / (N * N));
+			newpixel[0] = (rsum / (N * N)) > 255 ? 255 : uchar(rsum / (N * N));
+			newpixel[1] = (gsum / (N * N)) > 255 ? 255 : uchar(gsum / (N * N));
+			newpixel[2] = (bsum / (N * N)) > 255 ? 255 : uchar(bsum / (N * N));
 			newpixel[3] = 0;
 			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
 		}
@@ -146,7 +157,7 @@ void upscale_nn_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / (image->buffer_height() * N));
 		bar->redraw();
-		fltk::wait(0.001f);
+		fltk::wait(0);
 		for(int x = 0; x < image->buffer_width() * N; x++)
 		{
 			size_t index = (y / N) * image->buffer_width() * 4
@@ -200,7 +211,7 @@ void upscale_bl_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / (image->buffer_height() * N));
 		bar->redraw();
-		fltk::wait(0.001f);
+		fltk::wait(0);
 		for(int x = 0; x < image->buffer_width() * N; x++)
 		{
 			int floor_x = x / N,
@@ -269,7 +280,7 @@ Image* filter(double* kernel, int kern_height, int kern_width, const Image* imag
 	{
 		bar->position(100.0 * (double) y / (image->buffer_height()));
 		bar->redraw();
-		fltk::wait(0.001f);
+		fltk::wait(0);
 		for(int x = 0; x < image->buffer_width(); x++)
 		{
 			double newpix[3];
