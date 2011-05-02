@@ -12,6 +12,8 @@
 #include <fltk/SharedImage.h>
 #include <fltk/Image.h>
 #include <fltk/ask.h>
+#include <fltk/ValueInput.h>
+#include <fltk/ReturnButton.h>
 #include <fltk/ProgressBar.h>
 #include <fltk/MenuBuild.h>
 #include <fltk/Window.h>
@@ -402,7 +404,7 @@ void edge_detection_cb(Widget*, void*)
 	working = false;
 }
 
-void emboss_cb()
+void emboss_cb(Widget*, void*)
 {
 	if(!image)
 		return;
@@ -427,6 +429,68 @@ void emboss_cb()
 	image_box->redraw();
 
 	working = false;
+}
+
+Window* custom_filter_dialog = NULL;
+ValueInput *factor, *a00, *a01, *a02, *a10, *a11, *a12, *a20, *a21, *a22;
+
+void do_custom_cb(Widget*, void*)
+{
+	custom_filter_dialog->hide();
+	working = true;
+
+	double kernel[9];
+	kernel[0] = a00->value() * factor->value();
+	kernel[1] = a01->value() * factor->value();
+	kernel[2] = a02->value() * factor->value();
+	kernel[3] = a10->value() * factor->value();
+	kernel[4] = a11->value() * factor->value();
+	kernel[5] = a12->value() * factor->value();
+	kernel[6] = a20->value() * factor->value();
+	kernel[7] = a21->value() * factor->value();
+	kernel[8] = a22->value() * factor->value();
+
+	Image* newimage = filter(kernel, 3, 3, image);
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void custom_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	if(!custom_filter_dialog)
+	{
+		custom_filter_dialog = new Window(300, 200, "Custom filter coeffs");
+		custom_filter_dialog->set_modal();
+		custom_filter_dialog->begin();
+		a00 = new ValueInput(75, 25, 50, 20);
+		a01 = new ValueInput(150, 25, 50, 20);
+		a02 = new ValueInput(225, 25, 50, 20);
+		a10 = new ValueInput(75, 70, 50, 20);
+		a11 = new ValueInput(150, 70, 50, 20);
+		a12 = new ValueInput(225, 70, 50, 20);
+		a20 = new ValueInput(75, 115, 50, 20);
+		a21 = new ValueInput(150, 115, 50, 20);
+		a22 = new ValueInput(225, 115, 50, 20);
+		factor = new ValueInput(10, 70, 50, 20);
+		factor->value(1.0);
+		ReturnButton* b = new ReturnButton(200, 150, 75, 25, "OK");
+		b->callback(do_custom_cb);
+		custom_filter_dialog->end();
+	}
+	custom_filter_dialog->show();
 }
 
 static void build_menus(MenuBar* menu, Widget* w)
@@ -455,6 +519,7 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "Bl&ur filter",COMMAND + 'u', (Callback*)blur_cb);
 	new Item( "E&dge detection filter",COMMAND + 'd', (Callback*)edge_detection_cb);
 	new Item( "&Emboss filter",COMMAND + 'e', (Callback*)emboss_cb);
+	new Item( "&Custom filter",COMMAND + 'c', (Callback*)custom_cb);
 	g->end();
 	menu->end();
 }
