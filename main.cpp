@@ -574,7 +574,7 @@ void binarization_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / image->buffer_height());
 		bar->redraw();
-		fltk::wait(0.001f);
+		fltk::wait(0);
 		for(int x = 0; x < image->buffer_width(); x++)
 		{
 			size_t index = y * image->buffer_width() * 4 + x * 4;
@@ -628,7 +628,7 @@ void random_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / image->buffer_height());
 		bar->redraw();
-		fltk::wait(0.001f);
+		fltk::wait(0);
 		for(int x = 0; x < image->buffer_width(); x++)
 		{
 			size_t index = y * image->buffer_width() * 4 + x * 4;
@@ -687,7 +687,7 @@ void bayer_cb(Widget*, void*)
 	{
 		bar->position(100.0 * (double) y / image->buffer_height());
 		bar->redraw();
-		fltk::wait(0.001f);
+		fltk::wait(0);
 		for(int x = 0; x < image->buffer_width(); x++)
 		{
 			size_t index = y * image->buffer_width() * 4 + x * 4;
@@ -695,9 +695,9 @@ void bayer_cb(Widget*, void*)
 			uchar g = image->buffer()[index + 1];
 			uchar b = image->buffer()[index + 2];
 
-			unsigned long sum = r + g + b;
+			unsigned long sum = (r + g + b) / 3;
 			uchar newpixel[4], tag;
-			if((sum + map[x % 4][y % 4]) > 255 * 3 / 2)
+			if((sum + map[x % 4][y % 4]) > 255 * 2 / 2)
 				tag = 255;
 			else
 				tag = 0;
@@ -751,6 +751,7 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "&Custom filter",COMMAND + 'c', (Callback*)custom_cb);
 	new Divider;
 	new Item( "Grayscale s&imple", COMMAND + 'i', (Callback*)simple_grayscale_cb);
+	new Divider;
 	new Item( "&Binarization dithering", COMMAND + 'b', (Callback*)binarization_cb );
 	new Item( "R&andom dithering", COMMAND + 'a', (Callback*)random_cb );
 	new Item( "Ba&yer dithering", COMMAND + 'y', (Callback*)bayer_cb );
