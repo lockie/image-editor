@@ -12,6 +12,8 @@
 #include <fltk/SharedImage.h>
 #include <fltk/Image.h>
 #include <fltk/ask.h>
+#include <fltk/ValueInput.h>
+#include <fltk/ReturnButton.h>
 #include <fltk/ProgressBar.h>
 #include <fltk/MenuBuild.h>
 #include <fltk/Window.h>
@@ -452,8 +454,6 @@ void edge_detection_cb(Widget*, void*)
 	working = false;
 }
 
-
-
 void emboss_cb(Widget*, void*)
 {
 	if(!image)
@@ -492,6 +492,236 @@ void simple_grayscale_cb(Widget*, void*)
 	working = false;
 }
 
+Window* custom_filter_dialog = NULL;
+ValueInput *factor, *a00, *a01, *a02, *a10, *a11, *a12, *a20, *a21, *a22;
+
+void do_custom_cb(Widget*, void*)
+{
+	custom_filter_dialog->hide();
+	working = true;
+
+	double kernel[9];
+	kernel[0] = a00->value() * factor->value();
+	kernel[1] = a01->value() * factor->value();
+	kernel[2] = a02->value() * factor->value();
+	kernel[3] = a10->value() * factor->value();
+	kernel[4] = a11->value() * factor->value();
+	kernel[5] = a12->value() * factor->value();
+	kernel[6] = a20->value() * factor->value();
+	kernel[7] = a21->value() * factor->value();
+	kernel[8] = a22->value() * factor->value();
+
+	Image* newimage = filter(kernel, 3, 3, image);
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void custom_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	if(!custom_filter_dialog)
+	{
+		custom_filter_dialog = new Window(300, 200, "Custom filter coeffs");
+		custom_filter_dialog->set_modal();
+		custom_filter_dialog->begin();
+		a00 = new ValueInput(75, 25, 50, 20);
+		a01 = new ValueInput(150, 25, 50, 20);
+		a02 = new ValueInput(225, 25, 50, 20);
+		a10 = new ValueInput(75, 70, 50, 20);
+		a11 = new ValueInput(150, 70, 50, 20);
+		a12 = new ValueInput(225, 70, 50, 20);
+		a20 = new ValueInput(75, 115, 50, 20);
+		a21 = new ValueInput(150, 115, 50, 20);
+		a22 = new ValueInput(225, 115, 50, 20);
+		factor = new ValueInput(10, 70, 50, 20);
+		factor->value(1.0);
+		ReturnButton* b = new ReturnButton(200, 150, 75, 25, "OK");
+		b->callback(do_custom_cb);
+		custom_filter_dialog->end();
+	}
+	custom_filter_dialog->show();
+}
+
+void binarization_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setimage( image->buffer(),
+		RGB32,
+		image->buffer_width(),
+		image->buffer_height() );
+
+	for(int y = 0; y < image->buffer_height(); y++)
+	{
+		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->redraw();
+		fltk::wait(0.001f);
+		for(int x = 0; x < image->buffer_width(); x++)
+		{
+			size_t index = y * image->buffer_width() * 4 + x * 4;
+			uchar r = image->buffer()[index + 0];
+			uchar g = image->buffer()[index + 1];
+			uchar b = image->buffer()[index + 2];
+
+			unsigned long sum = r + g + b;
+			uchar newpixel[4], tag;
+			if(sum > 255 * 3 / 2)
+				tag = 255;
+			else
+				tag = 0;
+
+			newpixel[0] = tag;
+			newpixel[1] = tag;
+			newpixel[2] = tag;
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void random_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setimage( image->buffer(),
+		RGB32,
+		image->buffer_width(),
+		image->buffer_height() );
+
+	for(int y = 0; y < image->buffer_height(); y++)
+	{
+		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->redraw();
+		fltk::wait(0.001f);
+		for(int x = 0; x < image->buffer_width(); x++)
+		{
+			size_t index = y * image->buffer_width() * 4 + x * 4;
+			uchar r = image->buffer()[index + 0];
+			uchar g = image->buffer()[index + 1];
+			uchar b = image->buffer()[index + 2];
+
+			unsigned long sum = r + g + b;
+			uchar newpixel[4], tag;
+			if(sum > (rand() % (255 * 3)))
+				tag = 255;
+			else
+				tag = 0;
+
+			newpixel[0] = tag;
+			newpixel[1] = tag;
+			newpixel[2] = tag;
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+void bayer_cb(Widget*, void*)
+{
+	if(!image)
+		return;
+	if(working)
+		return;
+
+	working = true;
+
+	double map[4][4] = {{1, 9, 3, 11}, {13, 5, 15, 7}, {4, 12, 2, 10}, {16, 8, 14, 6}};
+	for(int i = 0; i < 4; i++)
+		for(int j = 0; j < 4; j++)
+			map[i][j] *= (255 / 17);
+
+	Image* newimage = new Image;
+	image->forceARGB32();
+	newimage->setimage( image->buffer(),
+		RGB32,
+		image->buffer_width(),
+		image->buffer_height() );
+
+	for(int y = 0; y < image->buffer_height(); y++)
+	{
+		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->redraw();
+		fltk::wait(0.001f);
+		for(int x = 0; x < image->buffer_width(); x++)
+		{
+			size_t index = y * image->buffer_width() * 4 + x * 4;
+			uchar r = image->buffer()[index + 0];
+			uchar g = image->buffer()[index + 1];
+			uchar b = image->buffer()[index + 2];
+
+			unsigned long sum = r + g + b;
+			uchar newpixel[4], tag;
+			if((sum + map[x % 4][y % 4]) > 255 * 3 / 2)
+				tag = 255;
+			else
+				tag = 0;
+
+			newpixel[0] = tag;
+			newpixel[1] = tag;
+			newpixel[2] = tag;
+			newpixel[3] = 0;
+			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
+		}
+	}
+
+	((SharedImage*)image)->remove();
+	delete image;
+	newimage->buffer_changed();
+	image = newimage;
+	image_box->image(image);
+	bar->position(0);
+	image_box->redraw();
+
+	working = false;
+}
+
+
 static void build_menus(MenuBar* menu, Widget* w)
 {
 	ItemGroup* g;
@@ -518,8 +748,12 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "Bl&ur filter",COMMAND + 'u', (Callback*)blur_cb);
 	new Item( "E&dge detection filter",COMMAND + 'd', (Callback*)edge_detection_cb);
 	new Item( "&Emboss filter",COMMAND + 'e', (Callback*)emboss_cb);
+	new Item( "&Custom filter",COMMAND + 'c', (Callback*)custom_cb);
 	new Divider;
 	new Item( "Grayscale s&imple", COMMAND + 'i', (Callback*)simple_grayscale_cb);
+	new Item( "&Binarization dithering", COMMAND + 'b', (Callback*)binarization_cb );
+	new Item( "R&andom dithering", COMMAND + 'a', (Callback*)random_cb );
+	new Item( "Ba&yer dithering", COMMAND + 'y', (Callback*)bayer_cb );
 	g->end();
 	menu->end();
 }
