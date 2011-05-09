@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
+#include <vector>
 
 #include <fltk/FL_API.h>
 #include <fltk/InvisibleBox.h>
@@ -19,12 +20,14 @@
 #include <fltk/Window.h>
 #include <fltk/run.h>
 
+using namespace std;
 using namespace fltk;
 
 
 static ProgressBar* bar = NULL;
 static InvisibleBox* image_box = NULL;
 static Image* image = NULL;
+static vector<Image*> images;
 
 void open_cb(Widget*, void*)
 {
@@ -34,7 +37,8 @@ void open_cb(Widget*, void*)
 
 	if(!filename)
 		return;
-	delete image;
+	if(image)
+		images.push_back(image);
 	image = NULL;
 	const char* extension = filename_ext(filename);
 	if(strcmp(extension, ".bmp") == 0)
@@ -56,6 +60,22 @@ void open_cb(Widget*, void*)
 void quit_cb(Widget*, void*)
 {
 	exit(0);
+}
+
+void undo_cb(Widget*, void*)
+{
+	if(images.size() != 0)
+	{
+		delete image;
+		image = images.back();
+		images.pop_back();
+		image_box->image(image);
+		image_box->redraw();
+	}
+	else
+	{
+		alert("Nothing to undo");
+	}
 }
 
 static bool working = false;
@@ -94,12 +114,12 @@ void sliding_avg_cb(Widget*, void*)
 			for(int j = -N/2; j <= N/2; j++)
 				for(int i = -N/2; i <= N/2; i++)
 				{
-					int y_idx = y + j > image->buffer_height() ?
+					int y_idx = y + j >= image->buffer_height() ?
 						N - j:
 						y + j;
 					if(y_idx < 0)
 						y_idx += image->buffer_height();
-					int x_idx = x + i > image->buffer_width() ?
+					int x_idx = x + i >= image->buffer_width() ?
 						N - i:
 						x + i;
 					if(x_idx < 0)
@@ -123,8 +143,7 @@ void sliding_avg_cb(Widget*, void*)
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -177,8 +196,7 @@ void upscale_nn_cb(Widget*, void*)
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -257,8 +275,7 @@ void upscale_bl_cb(Widget*, void*)
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -292,11 +309,15 @@ Image* filter(double* kernel, int kern_height, int kern_width, const Image* imag
 				int y_idx = j + y;
 				if(y_idx < 0)
 					y_idx += image->buffer_height();
+				if(y_idx >= image->buffer_height())
+					y_idx -= image->buffer_height();
 				for(int i = -int(kern_width / 2); i <= kern_width / 2; i++)
 				{
 					int x_idx = i + x;
 					if(x_idx < 0)
 						x_idx += image->buffer_width();
+					if(x_idx >= image->buffer_width())
+						x_idx -= image->buffer_width();
 					size_t index = y_idx * image->buffer_width() * 4
 						+ x_idx * 4;
 					size_t kern_index = (j+kern_height/2) * kern_width + (i+kern_width/2);
@@ -335,8 +356,7 @@ void sharpen_cb(Widget*, void*)
 	};
 	Image* newimage = filter(sharpen_kernel, 3, 3, image);
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -377,8 +397,7 @@ void blur_cb(Widget*, void*)
 
 	Image* newimage = filter(blur_kernel, 3, 3, image);
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -411,16 +430,15 @@ void do_simple_grayscale()
 			if(val > 255)
 				val = 255;
 			uchar newpixel[4];
-			newpixel[0] = val;
-			newpixel[1] = val;
-			newpixel[2] = val;
+			newpixel[0] = uchar(val);
+			newpixel[1] = uchar(val);
+			newpixel[2] = uchar(val);
 			newpixel[3] = 0;
 			newimage->setpixels(&newpixel[0], Rectangle(x, y, 1, 1));
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -444,8 +462,7 @@ void edge_detection_cb(Widget*, void*)
 	};
 	Image* newimage = filter(edgedet_kernel, 3, 3, image);
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 
@@ -470,8 +487,7 @@ void emboss_cb(Widget*, void*)
 	};
 	Image* newimage = filter(emboss_kernel, 3, 3, image);
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 
@@ -513,8 +529,7 @@ void do_custom_cb(Widget*, void*)
 
 	Image* newimage = filter(kernel, 3, 3, image);
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -597,8 +612,7 @@ void binarization_cb(Widget*, void*)
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -638,7 +652,7 @@ void random_cb(Widget*, void*)
 
 			unsigned long sum = r + g + b;
 			uchar newpixel[4], tag;
-			if(sum > (rand() % (255 * 3)))
+			if(sum > unsigned(rand() % (255 * 3)))
 				tag = 255;
 			else
 				tag = 0;
@@ -651,8 +665,7 @@ void random_cb(Widget*, void*)
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -710,8 +723,7 @@ void bayer_cb(Widget*, void*)
 		}
 	}
 
-	((SharedImage*)image)->remove();
-	delete image;
+	images.push_back(image);
 	newimage->buffer_changed();
 	image = newimage;
 	image_box->image(image);
@@ -739,6 +751,8 @@ static void build_menus(MenuBar* menu, Widget* w)
 	g->end();
 	g = new ItemGroup( "&Edit" );
 	g->begin();
+	new Item( "Undo", COMMAND + 'z', (Callback*)undo_cb );
+	new Divider;
 	new Item( "&Sliding average",  COMMAND + 's', (Callback*)sliding_avg_cb);
 	new Divider;
 	new Item( "Upscale &NN",      COMMAND + 'n', (Callback*)upscale_nn_cb);
