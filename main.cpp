@@ -1,6 +1,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cctype>
 #include <cstring>
 #include <cmath>
 #include <cassert>
@@ -90,6 +91,9 @@ void sliding_avg_cb(Widget*, void*)
 	const char* Nstr = input("Input window size", "10");
 	if(!Nstr)
 		return;
+	for(int i = 0; i < strlen(Nstr); i++)
+		if(!isdigit(Nstr[i]))
+			return;
 	int N = atoi(Nstr);
 	if(N == 0)
 		return;
@@ -163,6 +167,9 @@ void upscale_nn_cb(Widget*, void*)
 	const char* Nstr = input("Scale factor", "2");
 	if(!Nstr)
 		return;
+	for(int i = 0; i < strlen(Nstr); i++)
+		if(!isdigit(Nstr[i]))
+			return;
 	int N = atoi(Nstr);
 	if(N == 0)
 		return;
@@ -216,6 +223,9 @@ void upscale_bl_cb(Widget*, void*)
 	const char* Nstr = input("Scale factor", "2");
 	if(!Nstr)
 		return;
+	for(int i = 0; i < strlen(Nstr); i++)
+		if(!isdigit(Nstr[i]))
+			return;
 	int N = atoi(Nstr);
 	if(N == 0)
 		return;
@@ -373,9 +383,12 @@ void blur_cb(Widget*, void*)
 	if(working)
 		return;
 
-	const char* sigma_str = input("Blur strength", "1.0");
+	const char* sigma_str = input("Blur strength", "5.0");
 	if(!sigma_str)
 		return;
+	for(int i = 0; i < strlen(sigma_str); i++)
+		if(!isdigit(sigma_str[i]) && sigma_str[i] != '.')
+			return;
 	double sigma = atof(sigma_str);
 	if(sigma == 0)
 		return;
