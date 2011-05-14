@@ -41,8 +41,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="include"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="include;&quot;AFMM Inpainting\include&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -118,8 +118,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="include;&quot;AFMM Inpainting\include&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -179,7 +179,31 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\AFMM Inpainting\byteswap.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\flags.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\fmm.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\inpaint.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\io.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\main.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\mfmm.cpp"
 				>
 			</File>
 		</Filter>
@@ -188,6 +212,58 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\AFMM Inpainting\include\byteswap.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\darray.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\dqueue.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\field.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\flags.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\fmm.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\genrl.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\image.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\io.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\mfmm.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\moment.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\queue.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AFMM Inpainting\include\stack.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Файлы ресурсов"

@@ -25,10 +25,88 @@ using namespace std;
 using namespace fltk;
 
 
+extern Image* inpaint_fast_marching(const Image*, const Image*);
+
 static ProgressBar* bar = NULL;
-static InvisibleBox* image_box = NULL;
-static Image* image = NULL;
+class DisplayWidget;
+static DisplayWidget* image_box = NULL;
+static Image* img = NULL;
+static Image* oldimg = NULL;
+static Image* mask = NULL;
 static vector<Image*> images;
+static const int brush_size = 5;
+
+class DisplayWidget : public InvisibleBox
+{
+public:
+	DisplayWidget(int x, int y, int w, int h) : InvisibleBox(x, y, w, h) { };
+	int handle(int ev)
+	{
+		if(ev == ENTER)
+			return 1;
+		if(ev == DRAG)
+		{
+			if(!img)
+				return 0;
+			draw_pix(event_x() - (w() - img->buffer_width())/2, event_y() - (h() - img->buffer_height())/2);
+			return 1;
+		}
+		if(ev == PUSH)
+		{
+			if(!img)
+				return 0;
+			if(!oldimg)
+			{
+				oldimg = new Image;
+				img->forceARGB32();
+				oldimg->setimage( img->buffer(),
+					RGB32,
+					img->buffer_width(),
+					img->buffer_height() );
+
+				if(!mask)
+					mask = new Image;
+				mask->setsize(img->buffer_width(), img->buffer_height());
+				uchar pixel[4] = {255, 255, 255, 0};
+				for(int y = 0; y < img->buffer_height(); y++)
+					for(int x = 0; x < img->buffer_width(); x++)						
+						mask->setpixels(&pixel[0], Rectangle(x, y, 1, 1));
+			}
+			draw_pix(event_x() - (w() - img->buffer_width())/2, event_y() - (h() - img->buffer_height())/2);
+			return 1;
+		}
+		if(ev == RELEASE)
+		{
+			if(!img)
+				return 0;
+			return 1;
+		}
+		return InvisibleBox::handle(ev);
+	}
+	
+	void draw_pix(int x, int y)
+	{
+		if(x < 0 || y < 0 || x > img->buffer_width() || y > img->buffer_height())
+			return;
+		for(int i = x - brush_size / 2; i < x + brush_size / 2; i++)
+			for(int j = y - brush_size / 2; j < y + brush_size / 2; j++)
+			{
+				if(i < 0)
+					i = 0;
+				if(i >= img->buffer_width())
+					i = img->buffer_width() - 1;
+				if(j < 0)
+					j = 0;
+				if(j >= img->buffer_height())
+					j = img->buffer_height() - 1;
+				uchar newpixel[4 * brush_size * brush_size];
+				memset(newpixel, 0, sizeof(newpixel));
+				img->setpixels(&newpixel[0], Rectangle(i, j, brush_size, brush_size));
+				mask->setpixels(&newpixel[0], Rectangle(i, j, brush_size, brush_size));
+				image_box->redraw();
+			}
+	}
+};
 
 void open_cb(Widget*, void*)
 {
@@ -38,23 +116,23 @@ void open_cb(Widget*, void*)
 
 	if(!filename)
 		return;
-	if(image)
-		images.push_back(image);
-	image = NULL;
+	if(img)
+		images.push_back(img);
+	img = NULL;
 	const char* extension = filename_ext(filename);
 	if(strcmp(extension, ".bmp") == 0)
-		image = bmpImage::get(filename);
+		img = bmpImage::get(filename);
 	if(strcmp(extension, ".jpg") == 0)
-		image = jpegImage::get(filename);
+		img = jpegImage::get(filename);
 	if(strcmp(extension, ".png") == 0)
-		image = pngImage::get(filename);
+		img = pngImage::get(filename);
 
-	if(!image)
+	if(!img)
 	{
 		message("%s: wrong format", filename);
 		return;
 	}
-	image_box->image(image);
+	image_box->image(img);
 	image_box->redraw();
 }
 
@@ -67,10 +145,10 @@ void undo_cb(Widget*, void*)
 {
 	if(images.size() != 0)
 	{
-		delete image;
-		image = images.back();
+		delete img;
+		img = images.back();
 		images.pop_back();
-		image_box->image(image);
+		image_box->image(img);
 		image_box->redraw();
 	}
 	else
@@ -83,7 +161,7 @@ static bool working = false;
 
 void sliding_avg_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -101,41 +179,41 @@ void sliding_avg_cb(Widget*, void*)
 	working = true;
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setimage( image->buffer(),
+	img->forceARGB32();
+	newimage->setimage( img->buffer(),
 		RGB32,
-		image->buffer_width(),
-		image->buffer_height() );
+		img->buffer_width(),
+		img->buffer_height() );
 
-	for(int y = 0; y < image->buffer_height(); y++)
+	for(int y = 0; y < img->buffer_height(); y++)
 	{
-		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->position(100.0 * (double) y / img->buffer_height());
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width(); x++)
+		for(int x = 0; x < img->buffer_width(); x++)
 		{
 			unsigned long int rsum = 0, gsum = 0, bsum = 0;
 			for(int j = -N/2; j <= N/2; j++)
 				for(int i = -N/2; i <= N/2; i++)
 				{
-					int y_idx = y + j >= image->buffer_height() ?
+					int y_idx = y + j >= img->buffer_height() ?
 						N - j:
 						y + j;
 					if(y_idx < 0)
-						y_idx += image->buffer_height();
-					int x_idx = x + i >= image->buffer_width() ?
+						y_idx += img->buffer_height();
+					int x_idx = x + i >= img->buffer_width() ?
 						N - i:
 						x + i;
 					if(x_idx < 0)
-						x_idx += image->buffer_width();
+						x_idx += img->buffer_width();
 
-					size_t index = y_idx * image->buffer_width() * 4
+					size_t index = y_idx * img->buffer_width() * 4
 						+ x_idx * 4;
-					uchar r = image->buffer()[index + 0];
+					uchar r = img->buffer()[index + 0];
 					rsum += r;
-					uchar g = image->buffer()[index + 1];
+					uchar g = img->buffer()[index + 1];
 					gsum += g;
-					uchar b = image->buffer()[index + 2];
+					uchar b = img->buffer()[index + 2];
 					bsum += b;
 				}
 			uchar newpixel[4];
@@ -147,10 +225,10 @@ void sliding_avg_cb(Widget*, void*)
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -159,7 +237,7 @@ void sliding_avg_cb(Widget*, void*)
 
 void upscale_nn_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -177,22 +255,22 @@ void upscale_nn_cb(Widget*, void*)
 	working = true;
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setsize(image->buffer_width() * N, image->buffer_height() * N);
+	img->forceARGB32();
+	newimage->setsize(img->buffer_width() * N, img->buffer_height() * N);
 	newimage->setpixeltype(RGB32);
 
-	for(int y = 0; y < image->buffer_height() * N; y++)
+	for(int y = 0; y < img->buffer_height() * N; y++)
 	{
-		bar->position(100.0 * (double) y / (image->buffer_height() * N));
+		bar->position(100.0 * (double) y / (img->buffer_height() * N));
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width() * N; x++)
+		for(int x = 0; x < img->buffer_width() * N; x++)
 		{
-			size_t index = (y / N) * image->buffer_width() * 4
+			size_t index = (y / N) * img->buffer_width() * 4
 				+ (x / N) * 4;
-			char r = image->buffer()[index + 0];
-			char g = image->buffer()[index + 1];
-			char b = image->buffer()[index + 2];
+			char r = img->buffer()[index + 0];
+			char g = img->buffer()[index + 1];
+			char b = img->buffer()[index + 2];
 
 			uchar newpixel[4];
 			newpixel[0] = r;
@@ -203,10 +281,10 @@ void upscale_nn_cb(Widget*, void*)
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -215,7 +293,7 @@ void upscale_nn_cb(Widget*, void*)
 
 void upscale_bl_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -233,37 +311,37 @@ void upscale_bl_cb(Widget*, void*)
 	working = true;
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setsize(image->buffer_width() * N, image->buffer_height() * N);
+	img->forceARGB32();
+	newimage->setsize(img->buffer_width() * N, img->buffer_height() * N);
 	newimage->setpixeltype(RGB32);
 
-	for(int y = 0; y < image->buffer_height() * N; y++)
+	for(int y = 0; y < img->buffer_height() * N; y++)
 	{
-		bar->position(100.0 * (double) y / (image->buffer_height() * N));
+		bar->position(100.0 * (double) y / (img->buffer_height() * N));
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width() * N; x++)
+		for(int x = 0; x < img->buffer_width() * N; x++)
 		{
 			int floor_x = x / N,
 				floor_y = y / N;
 			int ceil_x = floor_x + 1;
-			if(ceil_x >= image->buffer_width())
+			if(ceil_x >= img->buffer_width())
 				ceil_x = floor_x;
 			int ceil_y = floor_y + 1;
-			if(ceil_y >= image->buffer_height())
+			if(ceil_y >= img->buffer_height())
 				ceil_y = floor_y;
 			double fraction_x = double(x) / N - floor_x,
 				fraction_y = double(y) / N - floor_y;
 			double one_minus_x = 1.0 - fraction_x,
 				one_minus_y = 1.0 - fraction_y;
 
-			uchar* f1 = &image->buffer()[floor_y * image->buffer_width() * 4 +
+			uchar* f1 = &img->buffer()[floor_y * img->buffer_width() * 4 +
 				floor_x * 4];
-			uchar* f2 = &image->buffer()[floor_y * image->buffer_width() * 4 +
+			uchar* f2 = &img->buffer()[floor_y * img->buffer_width() * 4 +
 				ceil_x * 4];
-			uchar* f3 = &image->buffer()[ceil_y  * image->buffer_width() * 4 +
+			uchar* f3 = &img->buffer()[ceil_y  * img->buffer_width() * 4 +
 				floor_x * 4];
-			uchar* f4 = &image->buffer()[ceil_y  * image->buffer_width() * 4 +
+			uchar* f4 = &img->buffer()[ceil_y  * img->buffer_width() * 4 +
 				ceil_x * 4];
 
 			uchar newpixel[4], p1, p2;
@@ -285,32 +363,32 @@ void upscale_bl_cb(Widget*, void*)
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
 	working = false;
 }
 
-Image* filter(double* kernel, int kern_height, int kern_width, const Image* image)
+Image* filter(double* kernel, int kern_height, int kern_width, const Image* img)
 {
 	assert(kern_height % 2);
 	assert(kern_width % 2);  // должен быть средний элемент
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setsize(image->buffer_width(), image->buffer_height());
+	img->forceARGB32();
+	newimage->setsize(img->buffer_width(), img->buffer_height());
 	newimage->setpixeltype(RGB32);
 
-	for(int y = 0; y < image->buffer_height(); y++)
+	for(int y = 0; y < img->buffer_height(); y++)
 	{
-		bar->position(100.0 * (double) y / (image->buffer_height()));
+		bar->position(100.0 * (double) y / (img->buffer_height()));
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width(); x++)
+		for(int x = 0; x < img->buffer_width(); x++)
 		{
 			double newpix[3];
 			memset(newpix, 0, sizeof(newpix));
@@ -318,24 +396,24 @@ Image* filter(double* kernel, int kern_height, int kern_width, const Image* imag
 			{
 				int y_idx = j + y;
 				if(y_idx < 0)
-					y_idx += image->buffer_height();
-				if(y_idx >= image->buffer_height())
-					y_idx -= image->buffer_height();
+					y_idx += img->buffer_height();
+				if(y_idx >= img->buffer_height())
+					y_idx -= img->buffer_height();
 				for(int i = -int(kern_width / 2); i <= kern_width / 2; i++)
 				{
 					int x_idx = i + x;
 					if(x_idx < 0)
-						x_idx += image->buffer_width();
-					if(x_idx >= image->buffer_width())
-						x_idx -= image->buffer_width();
-					size_t index = y_idx * image->buffer_width() * 4
+						x_idx += img->buffer_width();
+					if(x_idx >= img->buffer_width())
+						x_idx -= img->buffer_width();
+					size_t index = y_idx * img->buffer_width() * 4
 						+ x_idx * 4;
 					size_t kern_index = (j+kern_height/2) * kern_width + (i+kern_width/2);
-					uchar r = image->buffer()[index + 0];
+					uchar r = img->buffer()[index + 0];
 					newpix[0] += kernel[kern_index] * r;
-					uchar g = image->buffer()[index + 1];
+					uchar g = img->buffer()[index + 1];
 					newpix[1] += kernel[kern_index] * g;
-					uchar b = image->buffer()[index + 2];
+					uchar b = img->buffer()[index + 2];
 					newpix[2] += kernel[kern_index] * b;
 				}
 			}
@@ -352,7 +430,7 @@ Image* filter(double* kernel, int kern_height, int kern_width, const Image* imag
 
 void sharpen_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -364,12 +442,12 @@ void sharpen_cb(Widget*, void*)
 		0.1*(-2), 0.1*(22), 0.1*(-2),
 		0.1*(-1), 0.1*(-2), 0.1*(-1)
 	};
-	Image* newimage = filter(sharpen_kernel, 3, 3, image);
+	Image* newimage = filter(sharpen_kernel, 3, 3, img);
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -378,7 +456,7 @@ void sharpen_cb(Widget*, void*)
 
 void blur_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -408,12 +486,12 @@ void blur_cb(Widget*, void*)
 	for(int i = 0; i < 9; i++)
 		blur_kernel[i] /= sum;
 
-	Image* newimage = filter(blur_kernel, 3, 3, image);
+	Image* newimage = filter(blur_kernel, 3, 3, img);
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -423,21 +501,21 @@ void blur_cb(Widget*, void*)
 void do_simple_grayscale()
 {
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setsize(image->buffer_width(), image->buffer_height());
+	img->forceARGB32();
+	newimage->setsize(img->buffer_width(), img->buffer_height());
 	newimage->setpixeltype(RGB32);
 
-	for(int y = 0; y < image->buffer_height(); y++)
+	for(int y = 0; y < img->buffer_height(); y++)
 	{
-		bar->position(100.0 * (double) y / (image->buffer_height()));
+		bar->position(100.0 * (double) y / (img->buffer_height()));
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width(); x++)
+		for(int x = 0; x < img->buffer_width(); x++)
 		{
-			size_t index = (y * image->buffer_width() + x) * 4;
-			uchar r = image->buffer()[index + 0];
-			uchar g = image->buffer()[index + 1];
-			uchar b = image->buffer()[index + 2];
+			size_t index = (y * img->buffer_width() + x) * 4;
+			uchar r = img->buffer()[index + 0];
+			uchar g = img->buffer()[index + 1];
+			uchar b = img->buffer()[index + 2];
 
 			double val = 0.299 * r + 0.587 * g + 0.114 * b;
 			if(val > 255)
@@ -451,17 +529,17 @@ void do_simple_grayscale()
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 }
 
 void edge_detection_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -473,11 +551,11 @@ void edge_detection_cb(Widget*, void*)
 		-1, 4, -1,
 		0, -1, 0
 	};
-	Image* newimage = filter(edgedet_kernel, 3, 3, image);
+	Image* newimage = filter(edgedet_kernel, 3, 3, img);
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
+	img = newimage;
 
 	do_simple_grayscale();
 
@@ -486,7 +564,7 @@ void edge_detection_cb(Widget*, void*)
 
 void emboss_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -498,11 +576,11 @@ void emboss_cb(Widget*, void*)
 		1, 0, -1,
 		0, -1, 0
 	};
-	Image* newimage = filter(emboss_kernel, 3, 3, image);
+	Image* newimage = filter(emboss_kernel, 3, 3, img);
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
+	img = newimage;
 
 	do_simple_grayscale();
 
@@ -511,7 +589,7 @@ void emboss_cb(Widget*, void*)
 
 void simple_grayscale_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -540,12 +618,12 @@ void do_custom_cb(Widget*, void*)
 	kernel[7] = a21->value() * factor->value();
 	kernel[8] = a22->value() * factor->value();
 
-	Image* newimage = filter(kernel, 3, 3, image);
+	Image* newimage = filter(kernel, 3, 3, img);
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -554,7 +632,7 @@ void do_custom_cb(Widget*, void*)
 
 void custom_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -584,7 +662,7 @@ void custom_cb(Widget*, void*)
 
 void binarization_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -592,23 +670,23 @@ void binarization_cb(Widget*, void*)
 	working = true;
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setimage( image->buffer(),
+	img->forceARGB32();
+	newimage->setimage( img->buffer(),
 		RGB32,
-		image->buffer_width(),
-		image->buffer_height() );
+		img->buffer_width(),
+		img->buffer_height() );
 
-	for(int y = 0; y < image->buffer_height(); y++)
+	for(int y = 0; y < img->buffer_height(); y++)
 	{
-		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->position(100.0 * (double) y / img->buffer_height());
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width(); x++)
+		for(int x = 0; x < img->buffer_width(); x++)
 		{
-			size_t index = y * image->buffer_width() * 4 + x * 4;
-			uchar r = image->buffer()[index + 0];
-			uchar g = image->buffer()[index + 1];
-			uchar b = image->buffer()[index + 2];
+			size_t index = y * img->buffer_width() * 4 + x * 4;
+			uchar r = img->buffer()[index + 0];
+			uchar g = img->buffer()[index + 1];
+			uchar b = img->buffer()[index + 2];
 
 			unsigned long sum = r + g + b;
 			uchar newpixel[4], tag;
@@ -625,10 +703,10 @@ void binarization_cb(Widget*, void*)
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -637,7 +715,7 @@ void binarization_cb(Widget*, void*)
 
 void random_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -645,23 +723,23 @@ void random_cb(Widget*, void*)
 	working = true;
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setimage( image->buffer(),
+	img->forceARGB32();
+	newimage->setimage( img->buffer(),
 		RGB32,
-		image->buffer_width(),
-		image->buffer_height() );
+		img->buffer_width(),
+		img->buffer_height() );
 
-	for(int y = 0; y < image->buffer_height(); y++)
+	for(int y = 0; y < img->buffer_height(); y++)
 	{
-		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->position(100.0 * (double) y / img->buffer_height());
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width(); x++)
+		for(int x = 0; x < img->buffer_width(); x++)
 		{
-			size_t index = y * image->buffer_width() * 4 + x * 4;
-			uchar r = image->buffer()[index + 0];
-			uchar g = image->buffer()[index + 1];
-			uchar b = image->buffer()[index + 2];
+			size_t index = y * img->buffer_width() * 4 + x * 4;
+			uchar r = img->buffer()[index + 0];
+			uchar g = img->buffer()[index + 1];
+			uchar b = img->buffer()[index + 2];
 
 			unsigned long sum = r + g + b;
 			uchar newpixel[4], tag;
@@ -678,10 +756,10 @@ void random_cb(Widget*, void*)
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
@@ -690,7 +768,7 @@ void random_cb(Widget*, void*)
 
 void bayer_cb(Widget*, void*)
 {
-	if(!image)
+	if(!img)
 		return;
 	if(working)
 		return;
@@ -703,23 +781,23 @@ void bayer_cb(Widget*, void*)
 			map[i][j] *= (255 / 17);
 
 	Image* newimage = new Image;
-	image->forceARGB32();
-	newimage->setimage( image->buffer(),
+	img->forceARGB32();
+	newimage->setimage( img->buffer(),
 		RGB32,
-		image->buffer_width(),
-		image->buffer_height() );
+		img->buffer_width(),
+		img->buffer_height() );
 
-	for(int y = 0; y < image->buffer_height(); y++)
+	for(int y = 0; y < img->buffer_height(); y++)
 	{
-		bar->position(100.0 * (double) y / image->buffer_height());
+		bar->position(100.0 * (double) y / img->buffer_height());
 		bar->redraw();
 		fltk::wait(0);
-		for(int x = 0; x < image->buffer_width(); x++)
+		for(int x = 0; x < img->buffer_width(); x++)
 		{
-			size_t index = y * image->buffer_width() * 4 + x * 4;
-			uchar r = image->buffer()[index + 0];
-			uchar g = image->buffer()[index + 1];
-			uchar b = image->buffer()[index + 2];
+			size_t index = y * img->buffer_width() * 4 + x * 4;
+			uchar r = img->buffer()[index + 0];
+			uchar g = img->buffer()[index + 1];
+			uchar b = img->buffer()[index + 2];
 
 			unsigned long sum = (r + g + b) / 3;
 			uchar newpixel[4], tag;
@@ -736,16 +814,29 @@ void bayer_cb(Widget*, void*)
 		}
 	}
 
-	images.push_back(image);
+	images.push_back(img);
 	newimage->buffer_changed();
-	image = newimage;
-	image_box->image(image);
+	img = newimage;
+	image_box->image(img);
 	bar->position(0);
 	image_box->redraw();
 
 	working = false;
 }
 
+void fast_marching_cb(Widget*, void*)
+{
+	if(!img || !oldimg)
+		return;
+
+	images.push_back(oldimg);
+	Image* i = inpaint_fast_marching(oldimg, mask);
+	oldimg = NULL;
+	images.push_back(img);
+	img = i;
+	image_box->image(img);
+	image_box->redraw();
+}
 
 static void build_menus(MenuBar* menu, Widget* w)
 {
@@ -782,6 +873,8 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "&Binarization dithering", COMMAND + 'b', (Callback*)binarization_cb );
 	new Item( "R&andom dithering", COMMAND + 'a', (Callback*)random_cb );
 	new Item( "Ba&yer dithering", COMMAND + 'y', (Callback*)bayer_cb );
+	new Divider;
+	new Item( "&Fast marching inpaint", COMMAND + 'f', (Callback*)fast_marching_cb );
 	g->end();
 	menu->end();
 }
@@ -795,7 +888,7 @@ int main(int argc, char **argv)
 	window.begin();
 	MenuBar menubar(0, 0, 600, 25);
 	build_menus(&menubar, &window);
-	InvisibleBox box(0, 30, 800, 600);
+	DisplayWidget box(0, 30, 800, 600);
 	bar = new ProgressBar(0, 630, 800, 15);
 	image_box = &box;
 	window.resizable(box);
