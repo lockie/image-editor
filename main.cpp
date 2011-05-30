@@ -26,6 +26,7 @@ using namespace fltk;
 
 
 extern Image* inpaint_fast_marching(const Image*, const Image*);
+extern Image* inpaint_criminisi(const Image*, const Image*);
 
 static ProgressBar* bar = NULL;
 class DisplayWidget;
@@ -34,7 +35,7 @@ static Image* img = NULL;
 static Image* oldimg = NULL;
 static Image* mask = NULL;
 static vector<Image*> images;
-static const int brush_size = 5;
+static const int brush_size = 10;
 
 class DisplayWidget : public InvisibleBox
 {
@@ -94,15 +95,15 @@ public:
 				if(i < 0)
 					i = 0;
 				if(i >= img->buffer_width())
-					i = img->buffer_width() - 1;
+					break;
 				if(j < 0)
 					j = 0;
 				if(j >= img->buffer_height())
-					j = img->buffer_height() - 1;
+					break;
 				uchar newpixel[4 * brush_size * brush_size];
 				memset(newpixel, 0, sizeof(newpixel));
-				img->setpixels(&newpixel[0], Rectangle(i, j, brush_size, brush_size));
-				mask->setpixels(&newpixel[0], Rectangle(i, j, brush_size, brush_size));
+				img->setpixels(&newpixel[0], Rectangle(i, j, 1, 1));
+				mask->setpixels(&newpixel[0], Rectangle(i, j, 1, 1));
 				image_box->redraw();
 			}
 	}
@@ -838,6 +839,21 @@ void fast_marching_cb(Widget*, void*)
 	image_box->redraw();
 }
 
+void criminisi_cb(Widget*, void*)
+{
+	if(!img || !oldimg)
+		return;
+
+	images.push_back(oldimg);
+	Image* i = inpaint_criminisi(img, mask);
+	oldimg = NULL;
+	images.push_back(img);
+	img = i;
+	image_box->image(img);
+	image_box->redraw();
+
+}
+
 static void build_menus(MenuBar* menu, Widget* w)
 {
 	ItemGroup* g;
@@ -875,6 +891,7 @@ static void build_menus(MenuBar* menu, Widget* w)
 	new Item( "Ba&yer dithering", COMMAND + 'y', (Callback*)bayer_cb );
 	new Divider;
 	new Item( "&Fast marching inpaint", COMMAND + 'f', (Callback*)fast_marching_cb );
+	new Item( "Cri&minisi inpaint", COMMAND + 'm', (Callback*)criminisi_cb );
 	g->end();
 	menu->end();
 }
